@@ -1,0 +1,46 @@
+[
+  {
+    "serialNumber": "1029384756",
+    "name": "Smart Meter A1",
+    "type": "Smart Meter",
+    "location": "Plant 1 · Bay A",
+    "macAddress": "A4:5E:60:12:34:56",
+    "firmwareVersion": "v1.2.0",
+    "protocol": "DLMS",
+    "status": "Online",
+    "assignedUsers": []
+  },
+  {
+    "serialNumber": "5647382910",
+    "name": "Gateway G1",
+    "type": "Gateway",
+    "location": "Plant 1 · Control Room",
+    "macAddress": "B8:27:EB:9A:BC:DE",
+    "firmwareVersion": "v2.0.3",
+    "protocol": "MQTT",
+    "status": "Online",
+    "assignedUsers": []
+  },
+  {
+    "serialNumber": "0192837465",
+    "name": "HVAC Unit H1",
+    "type": "HVAC",
+    "location": "Plant 2 · Utility Floor",
+    "macAddress": "DC:A6:32:65:43:21",
+    "firmwareVersion": "v1.0.7",
+    "protocol": "DNP3",
+    "status": "Warning",
+    "assignedUsers": []
+  },
+  {
+    "serialNumber": "9081726354",
+    "name": "Smart Meter B2",
+    "type": "Smart Meter",
+    "location": "Plant 2 · Bay C",
+    "macAddress": "3C:52:82:AA:BB:CC",
+    "firmwareVersion": "v1.1.4",
+    "protocol": "DLMS",
+    "status": "Offline",
+    "assignedUsers": []
+  }
+]
