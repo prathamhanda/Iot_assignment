@@ -12,7 +12,7 @@ type StatusFilter = "all" | "connected" | "disconnected";
 
 export default function DevicesPage() {
   const { devices, setDevices, refreshDevices } = useIoTSimulator();
-  const { role, assignedDeviceIds, isAdmin } = useAuth();
+  const { isAdmin } = useAuth();
 
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -38,10 +38,7 @@ export default function DevicesPage() {
 
   const filtered = useMemo(() => {
     const q = query.trim();
-    const allowed = role === "Sub-User" ? new Set(assignedDeviceIds.map(String)) : null;
-
     return devices.filter((d) => {
-      if (allowed && !allowed.has(String(d.serialNumber))) return false;
       const matchesSerial = q ? d.serialNumber.includes(q) : true;
       const connected = normalizeStatus(d.status) !== "offline";
       const matchesStatus =
@@ -53,7 +50,7 @@ export default function DevicesPage() {
 
       return matchesSerial && matchesStatus;
     });
-  }, [assignedDeviceIds, devices, query, role, statusFilter]);
+  }, [devices, query, statusFilter]);
 
   function openCreate() {
     setEditTarget(null);

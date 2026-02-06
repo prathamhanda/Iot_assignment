@@ -6,23 +6,21 @@ import { useAuth } from "@/components/auth/AuthContext";
 
 export default function DashboardPage() {
   const { devices, telemetryByDevice, alerts, onlineCount, clearAlerts } = useIoTSimulator();
-  const { role, assignedDeviceIds } = useAuth();
+  const { role } = useAuth();
 
   function normalizeStatus(status: unknown) {
     return String(status ?? "").toLowerCase();
   }
 
   const visibleDevices = useMemo(() => {
-    if (role !== "Sub-User") return devices;
-    const allowed = new Set(assignedDeviceIds.map(String));
-    return devices.filter((d) => allowed.has(String(d.serialNumber)));
-  }, [assignedDeviceIds, devices, role]);
+    // Server-side filtering is enforced by /api/devices.
+    return devices;
+  }, [devices]);
 
   const visibleAlerts = useMemo(() => {
-    if (role !== "Sub-User") return alerts;
-    const allowed = new Set(assignedDeviceIds.map(String));
-    return alerts.filter((a) => allowed.has(String(a.device_id)));
-  }, [alerts, assignedDeviceIds, role]);
+    // Server-side filtering is enforced by /api/alerts.
+    return alerts;
+  }, [alerts]);
 
   const visibleOnlineCount = useMemo(() => {
     if (role !== "Sub-User") return onlineCount;

@@ -39,13 +39,53 @@ export default function SettingsPage() {
   const [tab, setTab] = useState<TabKey>("system");
   const [updateSource, setUpdateSource] = useState<"AWS S3" | "FTP">("AWS S3");
 
-  const users = useMemo(
-    () => [
-      { name: "Admin (You)", role: "Admin" as const },
-      { name: "Intern (Sub-User)", role: "Sub-User" as const },
-    ],
+  const [users, setUsers] = useState<Array<{ id: string; email: string; role: "Admin" | "Sub-User" }>>(
     []
   );
+  const [devices, setDevices] = useState<Array<{ id: string; name: string; serialNumber: string }>>(
+    []
+  );
+  const [manageUserId, setManageUserId] = useState<string | null>(null);
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string>("");
+  const [manageMsg, setManageMsg] = useState<string | null>(null);
+
+  async function refreshUsersAndDevices() {
+    if (!isAdmin) return;
+
+    const [uRes, dRes] = await Promise.all([
+      fetch("/api/admin/users", { cache: "no-store" }),
+      fetch("/api/devices", { cache: "no-store" }),
+    ]);
+
+    if (uRes.ok) {
+      const data = (await uRes.json()) as { users?: Array<{ id: string; email: string; role: "Admin" | "Sub-User" }> };
+      setUsers(Array.isArray(data.users) ? data.users : []);
+    }
+
+    if (dRes.ok) {
+      const data = (await dRes.json()) as { devices?: Array<{ id: string; name: string; serialNumber: string }> };
+      setDevices(Array.isArray(data.devices) ? data.devices : []);
+    }
+  }
+
+  async function assignDeviceToUser(userId: string) {
+    setManageMsg(null);
+    if (!selectedDeviceId) {
+      setManageMsg("Select a device to assign.");
+      return;
+    }
+    const res = await fetch("/api/admin/devices/assign", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId, deviceId: selectedDeviceId }),
+    });
+    if (!res.ok) {
+      const data = (await res.json().catch(() => null)) as { error?: string } | null;
+      setManageMsg(data?.error ?? "Assign failed");
+      return;
+    }
+    setManageMsg("Assigned successfully.");
+  }
 
   // DRD 2.1 / Section 7: Sub-Users must not access System Config or OTA.
   useEffect(() => {
@@ -53,6 +93,10 @@ export default function SettingsPage() {
       if (tab === "system" || tab === "ota") setTab("users");
     }
   }, [role, tab]);
+
+  useEffect(() => {
+    void refreshUsersAndDevices();
+  }, [isAdmin]);
 
   return (
     <div className="space-y-4">
@@ -127,18 +171,72 @@ export default function SettingsPage() {
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">User</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Role</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Mode</th>
+                  {isAdmin ? (
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600">Actions</th>
+                  ) : null}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {users.map((u) => (
-                  <tr key={u.name} className="hover:bg-slate-50">
-                    <td className="px-4 py-3 text-sm font-medium text-slate-900">{u.name}</td>
+                  <tr key={u.id} className="hover:bg-slate-50">
+                    <td className="px-4 py-3 text-sm font-medium text-slate-900">{u.email}</td>
                     <td className="px-4 py-3 text-sm text-slate-700">{u.role}</td>
                     <td className="px-4 py-3 text-sm text-slate-700">
                       {u.role === "Admin" ? "Full Access" : "View Only"}
                     </td>
+                    {isAdmin ? (
+                      <td className="px-4 py-3 text-right">
+                        {u.role === "Sub-User" ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setManageMsg(null);
+                              setSelectedDeviceId("");
+                              setManageUserId((prev) => (prev === u.id ? null : u.id));
+                            }}
+                            className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                          >
+                            Manage
+                          </button>
+                        ) : null}
+                      </td>
+                    ) : null}
                   </tr>
                 ))}
+
+                {isAdmin && manageUserId ? (
+                  <tr>
+                    <td className="px-4 py-4" colSpan={4}>
+                      <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
+                        <div className="text-sm font-semibold text-slate-900">Assign Device</div>
+                        <div className="mt-2 flex flex-col gap-2 md:flex-row md:items-center">
+                          <select
+                            value={selectedDeviceId}
+                            onChange={(e) => setSelectedDeviceId(e.target.value)}
+                            className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 md:max-w-md"
+                          >
+                            <option value="">Select a device…</option>
+                            {devices.map((d) => (
+                              <option key={d.id} value={d.id}>
+                                {d.name} ({d.serialNumber})
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            type="button"
+                            onClick={() => void assignDeviceToUser(manageUserId)}
+                            className="rounded-md bg-blue-700 px-3 py-2 text-sm font-semibold text-white"
+                          >
+                            Assign
+                          </button>
+                        </div>
+                        {manageMsg ? (
+                          <div className="mt-2 text-xs text-slate-600">{manageMsg}</div>
+                        ) : null}
+                      </div>
+                    </td>
+                  </tr>
+                ) : null}
               </tbody>
             </table>
           </div>

@@ -23,7 +23,7 @@ declare module "@/lib/mock-data" {
     status: DeviceStatus;
   };
 
-  export const initialDevices: Device[];
+
 }
 
 declare module "@/hooks/useIoTSimulator" {

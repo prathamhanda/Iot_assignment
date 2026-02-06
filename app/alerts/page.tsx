@@ -2,21 +2,43 @@
 
 import { useMemo, useState } from "react";
 import { CheckCheck, Filter } from "lucide-react";
-import { useIoTSimulator } from "@/hooks/useIoTSimulator";
-import { useAuth } from "@/components/auth/AuthContext";
+import { useEffect } from "react";
+
+type AlertRow = {
+  id: string;
+  device_id: string;
+  timestamp: string;
+  metric: "voltage";
+  value: number;
+  threshold: number;
+  severity: "warning";
+  message: string;
+};
 
 type SeverityFilter = "all" | "critical";
 
 export default function AlertsPage() {
-  const { alerts, clearAlerts } = useIoTSimulator();
-  const { role, assignedDeviceIds } = useAuth();
+  const [alerts, setAlerts] = useState<AlertRow[]>([]);
   const [filter, setFilter] = useState<SeverityFilter>("all");
 
-  const rows = useMemo(() => {
-    const allowed = role === "Sub-User" ? new Set(assignedDeviceIds.map(String)) : null;
-    const visible = allowed ? alerts.filter((a) => allowed.has(String(a.device_id))) : alerts;
+  async function refreshAlerts() {
+    const res = await fetch("/api/alerts", { cache: "no-store" });
+    if (!res.ok) return;
+    const data = (await res.json()) as { alerts?: AlertRow[] };
+    setAlerts(Array.isArray(data.alerts) ? data.alerts : []);
+  }
 
-    const mapped = visible.map((a) => {
+  async function clearAlerts() {
+    setAlerts([]);
+    await fetch("/api/alerts", { method: "DELETE" });
+  }
+
+  useEffect(() => {
+    void refreshAlerts();
+  }, []);
+
+  const rows = useMemo(() => {
+    const mapped = alerts.map((a) => {
       const severity = a.value > a.threshold + 10 ? "Critical" : "Warning";
       return {
         ...a,
@@ -27,7 +49,7 @@ export default function AlertsPage() {
     return filter === "critical"
       ? mapped.filter((r) => r.severity === "Critical")
       : mapped;
-  }, [alerts, assignedDeviceIds, filter, role]);
+  }, [alerts, filter]);
 
   return (
     <div className="space-y-4">

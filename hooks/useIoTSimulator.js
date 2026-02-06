@@ -80,6 +80,34 @@ function subscribeAlerts(listener) {
   return () => alertListeners.delete(listener);
 }
 
+let alertsLoadPromise = null;
+async function loadAlertsFromApi() {
+  if (alertsLoadPromise) return alertsLoadPromise;
+  alertsLoadPromise = (async () => {
+    try {
+      const res = await fetch("/api/alerts", { cache: "no-store" });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (Array.isArray(data?.alerts)) publishAlerts(data.alerts);
+    } finally {
+      alertsLoadPromise = null;
+    }
+  })();
+  return alertsLoadPromise;
+}
+
+async function persistAlert(alert) {
+  try {
+    await fetch("/api/alerts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(alert),
+    });
+  } catch {
+    // Best-effort; UI remains responsive even if persistence fails.
+  }
+}
+
 function publishDevices(nextDevices) {
   globalDevices = nextDevices;
   for (const listener of deviceListeners) listener(globalDevices);
@@ -177,6 +205,7 @@ function ensurePublisherRunning() {
           voltage: telemetry.voltage,
         });
         publishAlerts([alert, ...globalAlerts].slice(0, ALERTS_LIMIT));
+        void persistAlert(alert);
       }
     }
 
@@ -209,6 +238,7 @@ export function useIoTSimulator() {
   useEffect(() => {
     ensurePublisherRunning();
     void loadDevicesFromApi();
+    void loadAlertsFromApi();
     const unsubDevices = subscribeDevices(setDevicesState);
     const unsubTelemetry = subscribeTelemetry(setTelemetryByDeviceState);
     const unsubAlerts = subscribeAlerts(setAlerts);
@@ -228,6 +258,7 @@ export function useIoTSimulator() {
 
   function clearAlerts() {
     publishAlerts([]);
+    void fetch("/api/alerts", { method: "DELETE" }).catch(() => {});
   }
 
   return {
