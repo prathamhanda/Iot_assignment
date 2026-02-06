@@ -5,6 +5,8 @@ import { AUTH_COOKIE_NAME } from "@/lib/auth/constants";
 
 export type JwtPayload = {
   sub: string;
+  // Duplicate of `sub` for DRD clarity (explicit user id in payload).
+  uid: string;
   email: string;
   role: UserRole;
   assignedDevices: string[];

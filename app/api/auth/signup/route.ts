@@ -54,6 +54,7 @@ export async function POST(request: Request) {
 
   const token = signAuthToken({
     sub: String(user._id),
+    uid: String(user._id),
     email: user.email,
     role: user.role,
     assignedDevices: user.assignedDevices,

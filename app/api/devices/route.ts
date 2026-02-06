@@ -46,9 +46,22 @@ export async function GET() {
 	if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
 	await dbConnect();
-	const query = auth.role === "Admin" ? {} : { assignedUsers: new mongoose.Types.ObjectId(auth.sub) };
-	const devices = await Device.find(query).sort({ createdAt: -1 }).lean();
-	return NextResponse.json({ devices: devices.map(toClientDevice) });
+	if (auth.role === "Admin") {
+		const devices = await Device.find({}).sort({ createdAt: -1 }).lean();
+		return NextResponse.json({ devices: devices.map(toClientDevice) });
+	}
+
+	// Sub-User: return assigned devices only (DRD 2.1).
+	// Internship demo fallback (DRD 2.3): if none assigned, return a small sample
+	// so the dashboard is not empty for recruiters.
+	const assignedQuery = { assignedUsers: new mongoose.Types.ObjectId(auth.sub) };
+	const assigned = await Device.find(assignedQuery).sort({ createdAt: -1 }).lean();
+	if (assigned.length > 0) {
+		return NextResponse.json({ devices: assigned.map(toClientDevice) });
+	}
+
+	const sample = await Device.find({}).sort({ createdAt: -1 }).limit(3).lean();
+	return NextResponse.json({ devices: sample.map(toClientDevice) });
 }
 
 export async function POST(request: Request) {

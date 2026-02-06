@@ -33,7 +33,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
   }
 
-  const ok = await bcrypt.compare(password, user.passwordHash);
+  const ok = Boolean(user.passwordHash) && (await bcrypt.compare(password, user.passwordHash));
   user.loginActivity.unshift({
     userId: user._id,
     timestamp: new Date(),
@@ -61,6 +61,7 @@ export async function POST(request: Request) {
 
   const token = signAuthToken({
     sub: String(user._id),
+    uid: String(user._id),
     email: user.email,
     role,
     assignedDevices,
