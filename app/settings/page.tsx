@@ -48,6 +48,9 @@ export default function SettingsPage() {
   const [manageUserId, setManageUserId] = useState<string | null>(null);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string>("");
   const [manageMsg, setManageMsg] = useState<string | null>(null);
+  const [assignedDevices, setAssignedDevices] = useState<
+    Array<{ id: string; name: string; serialNumber: string }>
+  >([]);
 
   async function refreshUsersAndDevices() {
     if (!isAdmin) return;
@@ -85,7 +88,43 @@ export default function SettingsPage() {
       return;
     }
     setManageMsg("Assigned successfully.");
+    setSelectedDeviceId("");
+    await refreshAssignedDevices(userId);
   }
+
+  async function refreshAssignedDevices(userId: string) {
+    if (!isAdmin) return;
+    const res = await fetch(`/api/admin/users/${userId}/devices`, { cache: "no-store" });
+    if (!res.ok) {
+      setAssignedDevices([]);
+      return;
+    }
+    const data = (await res.json()) as {
+      devices?: Array<{ id: string; name: string; serialNumber: string }>;
+    };
+    setAssignedDevices(Array.isArray(data.devices) ? data.devices : []);
+  }
+
+  async function unassignDeviceFromUser(userId: string, deviceId: string) {
+    setManageMsg(null);
+    const res = await fetch("/api/admin/devices/unassign", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId, deviceId }),
+    });
+    if (!res.ok) {
+      const data = (await res.json().catch(() => null)) as { error?: string } | null;
+      setManageMsg(data?.error ?? "Remove failed");
+      return;
+    }
+    await refreshAssignedDevices(userId);
+  }
+
+  const assignedIds = useMemo(() => new Set(assignedDevices.map((d) => d.id)), [assignedDevices]);
+  const availableDevices = useMemo(
+    () => devices.filter((d) => !assignedIds.has(d.id)),
+    [assignedIds, devices]
+  );
 
   // DRD 2.1 / Section 7: Sub-Users must not access System Config or OTA.
   useEffect(() => {
@@ -192,7 +231,12 @@ export default function SettingsPage() {
                             onClick={() => {
                               setManageMsg(null);
                               setSelectedDeviceId("");
-                              setManageUserId((prev) => (prev === u.id ? null : u.id));
+                              setAssignedDevices([]);
+                              setManageUserId((prev) => {
+                                const next = prev === u.id ? null : u.id;
+                                if (next) void refreshAssignedDevices(next);
+                                return next;
+                              });
                             }}
                             className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
                           >
@@ -216,7 +260,7 @@ export default function SettingsPage() {
                             className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 md:max-w-md"
                           >
                             <option value="">Select a device…</option>
-                            {devices.map((d) => (
+                            {availableDevices.map((d) => (
                               <option key={d.id} value={d.id}>
                                 {d.name} ({d.serialNumber})
                               </option>
@@ -230,6 +274,33 @@ export default function SettingsPage() {
                             Assign
                           </button>
                         </div>
+
+                        <div className="mt-3">
+                          <div className="text-xs font-medium text-slate-600">Currently Assigned</div>
+                          {assignedDevices.length ? (
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {assignedDevices.map((d) => (
+                                <span
+                                  key={d.id}
+                                  className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700"
+                                >
+                                  {d.name} ({d.serialNumber})
+                                  <button
+                                    type="button"
+                                    onClick={() => void unassignDeviceFromUser(manageUserId, d.id)}
+                                    className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-700 hover:bg-slate-50"
+                                    aria-label={`Remove ${d.name}`}
+                                  >
+                                    X
+                                  </button>
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="mt-1 text-xs text-slate-500">No devices assigned yet.</div>
+                          )}
+                        </div>
+
                         {manageMsg ? (
                           <div className="mt-2 text-xs text-slate-600">{manageMsg}</div>
                         ) : null}
