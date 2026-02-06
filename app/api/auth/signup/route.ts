@@ -7,11 +7,12 @@ import { AUTH_COOKIE_NAME } from "@/lib/auth/constants";
 
 export async function POST(request: Request) {
   const body = (await request.json().catch(() => null)) as
-    | { email?: string; password?: string }
+    | { email?: string; password?: string; role?: "Admin" | "Sub-User" }
     | null;
 
   const email = String(body?.email ?? "").trim().toLowerCase();
   const password = String(body?.password ?? "");
+  const role = body?.role;
 
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return NextResponse.json({ error: "Valid email is required" }, { status: 400 });
@@ -20,15 +21,26 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Password must be at least 8 characters" }, { status: 400 });
   }
 
+  if (role !== "Admin" && role !== "Sub-User") {
+    return NextResponse.json({ error: "Role must be Admin or Sub-User" }, { status: 400 });
+  }
+
   await connectToDb();
 
-  // Bootstrap rule: allow signup only when no users exist.
-  const existingCount = await User.countDocuments();
-  if (existingCount > 0) {
-    return NextResponse.json(
-      { error: "Signup disabled. Ask an Admin to create users." },
-      { status: 403 }
-    );
+  // Guardrail (DRD-aligned): only allow creating the FIRST Admin via public signup.
+  if (role === "Admin") {
+    const existingAdmin = await User.exists({ role: "Admin" });
+    if (existingAdmin) {
+      return NextResponse.json(
+        { error: "Admin already exists. Register as Sub-User." },
+        { status: 403 }
+      );
+    }
+  }
+
+  const existingEmail = await User.exists({ email });
+  if (existingEmail) {
+    return NextResponse.json({ error: "Email is already registered" }, { status: 409 });
   }
 
   const passwordHash = await bcrypt.hash(password, 12);
@@ -36,7 +48,7 @@ export async function POST(request: Request) {
   const user = await User.create({
     email,
     passwordHash,
-    role: "Admin",
+    role,
     assignedDevices: [],
   });
 

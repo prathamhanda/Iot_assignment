@@ -16,6 +16,14 @@ const fs = require("node:fs");
 const path = require("node:path");
 const mongoose = require("mongoose");
 
+function readArgValue(flag) {
+  const idx = process.argv.indexOf(flag);
+  if (idx === -1) return null;
+  const value = process.argv[idx + 1];
+  if (!value || value.startsWith("--")) return null;
+  return value;
+}
+
 function loadEnvLocal() {
   const envPath = path.join(__dirname, ".env.local");
   if (!fs.existsSync(envPath)) return;
@@ -32,11 +40,25 @@ function loadEnvLocal() {
   }
 }
 
+// Allow overriding via CLI (useful for Atlas / CI)
+const cliUri = readArgValue("--uri");
+if (cliUri) process.env.MONGODB_URI = cliUri;
+
 if (!process.env.MONGODB_URI) loadEnvLocal();
 
 const MONGODB_URI = process.env.MONGODB_URI;
 if (!MONGODB_URI) {
   console.error("Missing MONGODB_URI. Put it in .env.local");
+  process.exit(1);
+}
+
+const tlsCert = readArgValue("--tlsCert");
+const tlsCA = readArgValue("--tlsCA");
+
+if (String(MONGODB_URI).includes("authMechanism=MONGODB-X509") && !tlsCert) {
+  console.error(
+    "Your MONGODB_URI uses MONGODB-X509 (client certificate auth). Provide a client cert file via --tlsCert <path> (and optionally --tlsCA <path>), or use a standard Atlas username/password URI instead."
+  );
   process.exit(1);
 }
 
@@ -52,7 +74,12 @@ async function main() {
   const filePath = path.join(__dirname, "seed-devices.json");
   const devices = JSON.parse(fs.readFileSync(filePath, "utf8"));
 
-  await mongoose.connect(MONGODB_URI);
+  /** @type {Record<string, any>} */
+  const connectOptions = {};
+  if (tlsCert) connectOptions.tlsCertificateKeyFile = tlsCert;
+  if (tlsCA) connectOptions.tlsCAFile = tlsCA;
+
+  await mongoose.connect(MONGODB_URI, connectOptions);
 
   const collection = mongoose.connection.db.collection("devices");
 
